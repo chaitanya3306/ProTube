@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>YT Focus Feed — Settings</title>
+    <link rel="stylesheet" href="css/options.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <h1>YT Focus Feed — Settings</h1>
+        <p>Turn YouTube into an intentional, distraction-free learning workspace. 100% local &amp; private.</p>
+      </div>
+      <button id="save" type="button" class="primary">Save changes</button>
+    </header>
+
+    <p id="banner" class="banner" hidden></p>
+
+    <section class="card">
+      <h2>1-Click Starter Packs</h2>
+      <p class="help">Pick a focus profile to configure your domains immediately, then customize below.</p>
+      <div id="presetPacks" class="packs"></div>
+    </section>
+
+    <section class="card">
+      <h2>YouTube Data API key (Optional — unlocks full topic search)</h2>
+      <p class="help">
+        Without a key, the extension uses <strong>Starter Mode</strong> (official YouTube channel RSS feeds, zero setup).
+        Add a free YouTube Data API v3 key to search across all of YouTube with full duration, like-ratio, and multi-strategy discovery.
+      </p>
+      <details class="guide">
+        <summary>How to get a free YouTube Data API v3 key in 60 seconds</summary>
+        <ol>
+          <li>Open <a href="https://console.cloud.google.com/" target="_blank" rel="noreferrer">Google Cloud Console</a> and create a new project.</li>
+          <li>Go to <strong>APIs &amp; Services → Library</strong>, search for <strong>YouTube Data API v3</strong>, and click <strong>Enable</strong>.</li>
+          <li>Go to <strong>APIs &amp; Services → Credentials → Create Credentials → API key</strong>.</li>
+          <li>Paste the key below and click <strong>Save changes</strong>.</li>
+        </ol>
+      </details>
+      <label class="field">
+        <span>API key</span>
+        <input id="apiKey" type="password" autocomplete="off" placeholder="AIza... (optional)" />
+      </label>
+      <div class="row-inline">
+        <label class="check">
+          <input id="showKey" type="checkbox" />
+          Show key
+        </label>
+        <span id="quotaEstimate" class="quota-pill"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Homepage Mode &amp; Calm UI</h2>
+      <div class="grid-2">
+        <label class="field">
+          <span>Homepage mode</span>
+          <select id="homeMode">
+            <option value="feed">Productive Custom Feed</option>
+            <option value="zen">Zen Mode (Search &amp; Saved Queue only)</option>
+          </select>
+        </label>
+        <label class="field">
+          <span>Daily mindful watch-time goal (minutes, 0 = off)</span>
+          <input id="dailyGoalMinutes" type="number" min="0" max="480" />
+        </label>
+      </div>
+      <div id="calmUI" class="checks"></div>
+    </section>
+
+    <section class="card">
+      <h2>Distraction Shield (Home &amp; Watch Pages)</h2>
+      <p class="help">Block algorithmic traps across the homepage, watch sidebar, comments, end screens, and Shorts.</p>
+      <div id="hideNative" class="checks"></div>
+    </section>
+
+    <section class="card">
+      <h2>Feed Behavior</h2>
+      <div class="grid-2">
+        <label class="field">
+          <span>Videos fetched per source (20–50)</span>
+          <input id="maxPerSource" type="number" min="20" max="50" />
+        </label>
+        <label class="field">
+          <span>Cache minutes (0 = always fetch on reload)</span>
+          <input id="cacheMinutes" type="number" min="0" max="180" />
+        </label>
+        <label class="field">
+          <span>Region code</span>
+          <input id="regionCode" type="text" maxlength="2" />
+        </label>
+        <label class="field">
+          <span>Language</span>
+          <input id="relevanceLanguage" type="text" maxlength="8" />
+        </label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Topics</h2>
+      <p class="help">Domains you want to learn from. They are quality-scored, balanced, and rotated so every refresh surfaces fresh top videos.</p>
+      <div id="topics" class="list"></div>
+      <form id="topicForm" class="inline-form">
+        <input name="name" placeholder="Topic name" required />
+        <input name="query" placeholder="Search query" required />
+        <input name="score" type="number" value="25" />
+        <button type="submit">Add topic</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h2>Channels</h2>
+      <p class="help">Paste a channel URL (<code>youtube.com/channel/UC...</code>), <code>@handle</code>, or channel name.</p>
+      <div id="channels" class="list"></div>
+      <form id="channelForm" class="inline-form">
+        <input id="channelQuery" placeholder="Channel name, @handle, or UC... URL" required />
+        <input id="channelScore" type="number" value="35" />
+        <button type="submit">Find &amp; add</button>
+      </form>
+      <div id="channelResults" class="list"></div>
+    </section>
+
+    <section class="card">
+      <h2>Muted Channels</h2>
+      <p class="help">Channels muted from video cards will never appear in your feed.</p>
+      <div id="blockedChannels" class="list"></div>
+    </section>
+
+    <section class="card">
+      <h2>Score Weights</h2>
+      <p class="help">
+        Positive numbers boost a video. Negative numbers push it down. Videos below <em>Minimum score</em> are dropped.
+      </p>
+      <div class="grid-2" id="weights"></div>
+    </section>
+
+    <section class="card">
+      <h2>Backup &amp; Sharing</h2>
+      <p class="help">Export or import your topics, channels, and shield settings (API key is excluded from exports for safety).</p>
+      <div class="row-inline">
+        <button id="exportBtn" type="button">Export JSON</button>
+        <label class="file-btn">
+          Import JSON
+          <input id="importInput" type="file" accept="application/json" hidden />
+        </label>
+      </div>
+    </section>
+
+    <script src="js/constants.js"></script>
+    <script src="js/presets.js"></script>
+    <script src="js/storage.js"></script>
+    <script src="js/options.js"></script>
+  </body>
+</html>

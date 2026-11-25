@@ -1,0 +1,504 @@
+html.yt-custom-home,
+html.yt-custom-home body {
+  overflow: hidden !important;
+}
+
+html.yt-custom-home ytd-page-manager {
+  overflow: hidden !important;
+}
+
+html.yt-custom-home ytd-browse[page-subtype="home"] {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+html.yt-hide-shorts ytd-reel-shelf-renderer,
+html.yt-hide-shorts ytd-rich-shelf-renderer:has(a[href^="/shorts"]),
+html.yt-hide-shorts ytd-guide-entry-renderer:has(a[href="/shorts"]),
+html.yt-hide-shorts ytd-mini-guide-entry-renderer:has(a[href="/shorts"]),
+html.yt-hide-shorts ytd-guide-entry-renderer a[href="/shorts"] {
+  display: none !important;
+}
+
+html.yt-hide-trending ytd-guide-entry-renderer:has(a[href="/feed/trending"]),
+html.yt-hide-trending ytd-mini-guide-entry-renderer:has(a[href="/feed/trending"]) {
+  display: none !important;
+}
+
+html.yt-hide-gaming ytd-guide-entry-renderer:has(a[href="/gaming"]),
+html.yt-hide-gaming ytd-mini-guide-entry-renderer:has(a[href="/gaming"]) {
+  display: none !important;
+}
+
+html.yt-hide-sports ytd-guide-entry-renderer a[href*="/channel/UCEgdi0XIXXZ-qJOFPf4JSKw"] {
+  display: none !important;
+}
+
+html.yt-hide-entertainment ytd-guide-entry-renderer a[href*="/channel/UClgRkhTL3_hImCAmdLfDE4g"] {
+  display: none !important;
+}
+
+/* Watch-page Distraction Shield */
+html.yt-hide-watch-sidebar #related,
+html.yt-hide-watch-sidebar ytd-watch-next-secondary-results-renderer {
+  display: none !important;
+}
+
+html.yt-hide-endscreens .ytp-ce-element,
+html.yt-hide-endscreens .ytp-endscreen-content,
+html.yt-hide-endscreens .ytp-autonav-endscreen-countdown-overlay {
+  display: none !important;
+}
+
+html.yt-hide-livechat ytd-live-chat-frame,
+html.yt-hide-livechat #chat {
+  display: none !important;
+}
+
+html.yt-collapse-comments:not(.ytcf-comments-open) ytd-comments#comments {
+  display: none !important;
+}
+
+.ytcf-comments-bar {
+  margin: 16px 0 8px;
+}
+
+.ytcf-comments-btn {
+  border: 1px solid var(--yt-spec-10-percent-layer, rgba(255, 255, 255, 0.16));
+  background: var(--yt-spec-badge-chip-background, rgba(255, 255, 255, 0.08));
+  color: var(--yt-spec-text-primary, #f1f1f1);
+  border-radius: 18px;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* Calm UI modifiers */
+html.ytcf-calm-thumbs .ytcf-thumb {
+  filter: grayscale(75%) contrast(0.95);
+  transition: filter 0.2s ease;
+}
+
+html.ytcf-calm-thumbs .ytcf-card:hover .ytcf-thumb {
+  filter: grayscale(0%);
+}
+
+html.ytcf-hide-views .ytcf-views {
+  display: none !important;
+}
+
+#yt-custom-feed-root {
+  display: none;
+  position: fixed !important;
+  top: 56px;
+  right: 0;
+  bottom: 0;
+  left: 72px;
+  z-index: 1999;
+  overflow-x: hidden;
+  overflow-y: auto;
+  background: var(--yt-spec-base-background, #0f0f0f);
+  color: var(--yt-spec-text-primary, #f1f1f1);
+  font-family: "Roboto", "YouTube Sans", Arial, sans-serif;
+  box-sizing: border-box;
+}
+
+#yt-custom-feed-root.is-on {
+  display: block !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+}
+
+.ytcf-shell {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1856px;
+  margin: 0 auto;
+  padding: 16px 20px 80px 24px;
+  position: relative;
+}
+
+.ytcf-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0 14px;
+  margin-bottom: 12px;
+  background: var(--yt-spec-base-background, #0f0f0f);
+}
+
+.ytcf-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+
+.ytcf-chip {
+  border: 0;
+  background: var(--yt-spec-badge-chip-background, rgba(255, 255, 255, 0.1));
+  color: var(--yt-spec-text-primary, #f1f1f1);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ytcf-chip.is-active {
+  background: var(--yt-spec-text-primary, #f1f1f1);
+  color: var(--yt-spec-base-background, #0f0f0f);
+}
+
+.ytcf-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.ytcf-status-pill {
+  font-size: 12px;
+  color: var(--yt-spec-text-secondary, #aaa);
+  background: var(--yt-spec-badge-chip-background, rgba(255, 255, 255, 0.06));
+  padding: 5px 10px;
+  border-radius: 14px;
+}
+
+.ytcf-select {
+  border: 1px solid var(--yt-spec-10-percent-layer, rgba(255, 255, 255, 0.15));
+  background: var(--yt-spec-badge-chip-background, rgba(255, 255, 255, 0.08));
+  color: var(--yt-spec-text-primary, #f1f1f1);
+  border-radius: 18px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.ytcf-select option {
+  background: #1a1a1a;
+  color: #f1f1f1;
+}
+
+.ytcf-icon-btn {
+  border: 0;
+  background: var(--yt-spec-badge-chip-background, rgba(255, 255, 255, 0.1));
+  color: var(--yt-spec-text-primary, #f1f1f1);
+  border-radius: 18px;
+  padding: 6px 13px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ytcf-primary-btn {
+  background: #3ea6ff;
+  color: #0f0f0f;
+  font-weight: 600;
+}
+
+.ytcf-icon-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.ytcf-starter-tip {
+  margin: 0 0 16px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--yt-spec-text-secondary, #ccc);
+  background: var(--yt-spec-badge-chip-background, rgba(62, 166, 255, 0.1));
+  border: 1px solid rgba(62, 166, 255, 0.25);
+}
+
+.ytcf-link-btn {
+  border: 0;
+  background: none;
+  color: #3ea6ff;
+  font-size: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.ytcf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  column-gap: 16px;
+  row-gap: 36px;
+}
+
+.ytcf-card {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+  min-width: 0;
+}
+
+.ytcf-thumb-wrap {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  background: #111;
+}
+
+.ytcf-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.ytcf-domain-tag {
+  position: absolute;
+  left: 6px;
+  top: 6px;
+  background: rgba(15, 15, 15, 0.78);
+  color: #f1f1f1;
+  padding: 3px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  max-width: 65%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ytcf-duration {
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  background: rgba(0, 0, 0, 0.82);
+  color: #fff;
+  padding: 3px 5px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.ytcf-card-actions {
+  position: absolute;
+  right: 6px;
+  top: 6px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.ytcf-card:hover .ytcf-card-actions,
+.ytcf-card:focus-within .ytcf-card-actions {
+  opacity: 1;
+}
+
+.ytcf-card-btn {
+  border: 0;
+  background: rgba(15, 15, 15, 0.85);
+  color: #f1f1f1;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.ytcf-card-btn:hover {
+  background: rgba(62, 166, 255, 0.92);
+  color: #0f0f0f;
+}
+
+.ytcf-card-btn.is-saved {
+  background: #3ea6ff;
+  color: #0f0f0f;
+  opacity: 1;
+}
+
+.ytcf-card-body {
+  display: flex;
+  gap: 12px;
+  padding: 12px 0 0;
+}
+
+.ytcf-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #323232;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.ytcf-title {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.375;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.ytcf-channel,
+.ytcf-stats {
+  margin: 0;
+  color: var(--yt-spec-text-secondary, #aaa);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.ytcf-zen-box {
+  max-width: 640px;
+  margin: 10vh auto 0;
+  text-align: center;
+  padding: 32px 24px;
+}
+
+.ytcf-zen-kicker {
+  font-size: 13px;
+  color: var(--yt-spec-text-secondary, #aaa);
+  margin: 0 0 10px;
+}
+
+.ytcf-zen-box h1 {
+  margin: 0 0 20px;
+  font-size: 28px;
+  font-weight: 600;
+}
+
+.ytcf-zen-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.ytcf-zen-form input {
+  flex: 1;
+  padding: 12px 16px;
+  border-radius: 24px;
+  border: 1px solid var(--yt-spec-10-percent-layer, rgba(255, 255, 255, 0.2));
+  background: var(--yt-spec-badge-chip-background, rgba(255, 255, 255, 0.06));
+  color: var(--yt-spec-text-primary, #f1f1f1);
+  font-size: 15px;
+}
+
+.ytcf-zen-form button {
+  padding: 12px 20px;
+  border-radius: 24px;
+  border: 0;
+  background: #3ea6ff;
+  color: #0f0f0f;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.ytcf-zen-links {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+}
+
+.ytcf-error {
+  margin: 32px 8px;
+  padding: 24px;
+  background: var(--yt-spec-badge-chip-background, rgba(255, 255, 255, 0.06));
+  border-radius: 12px;
+}
+
+.ytcf-notice {
+  margin: 0 8px 16px 0;
+  padding: 10px 14px;
+  background: rgba(62, 166, 255, 0.14);
+  border: 1px solid rgba(62, 166, 255, 0.35);
+  color: var(--yt-spec-text-primary, #f1f1f1);
+  border-radius: 8px;
+  font-size: 13px;
+}
+
+.ytcf-error h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+}
+
+.ytcf-hint {
+  color: var(--yt-spec-text-secondary, #aaa);
+}
+
+.ytcf-skel-thumb,
+.ytcf-skel-line,
+.ytcf-skel-avatar {
+  background: linear-gradient(90deg, #1f1f1f 25%, #2a2a2a 37%, #1f1f1f 63%);
+  background-size: 400% 100%;
+  animation: ytcf-pulse 1.4s ease infinite;
+}
+
+html:not([dark]) .ytcf-skel-thumb,
+html:not([dark]) .ytcf-skel-line,
+html:not([dark]) .ytcf-skel-avatar {
+  background: linear-gradient(90deg, #e5e5e5 25%, #f2f2f2 37%, #e5e5e5 63%);
+  background-size: 400% 100%;
+}
+
+.ytcf-skel-thumb {
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+}
+
+.ytcf-skel-meta {
+  display: flex;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+.ytcf-skel-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.ytcf-skel-line {
+  height: 14px;
+  border-radius: 6px;
+  margin-top: 8px;
+}
+
+.ytcf-skel-line.short {
+  width: 55%;
+}
+
+.ytcf-sentinel {
+  height: 48px;
+}
+
+@keyframes ytcf-pulse {
+  0% { background-position: 100% 0; }
+  100% { background-position: 0 0; }
+}
+
+@media (max-width: 900px) {
+  #yt-custom-feed-root {
+    left: 0 !important;
+  }
+}

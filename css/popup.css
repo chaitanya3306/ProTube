@@ -1,0 +1,95 @@
+body {
+  margin: 0;
+  width: 300px;
+  padding: 16px;
+  background: #0f0f0f;
+  color: #f1f1f1;
+  font-family: Segoe UI, Roboto, Arial, sans-serif;
+}
+
+.head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 17px;
+}
+
+.sub {
+  margin: 0;
+  color: #aaa;
+  font-size: 12px;
+}
+
+.badge {
+  background: rgba(62, 166, 255, 0.16);
+  color: #3ea6ff;
+  border-radius: 12px;
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.stats {
+  display: flex;
+  justify-content: space-between;
+  background: #181818;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 12px;
+  color: #ccc;
+  margin-bottom: 12px;
+}
+
+.toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.toggle {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #181818;
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+button {
+  border: 0;
+  border-radius: 8px;
+  padding: 9px 10px;
+  cursor: pointer;
+  background: #3ea6ff;
+  color: #111;
+  font-weight: 700;
+  font-size: 13px;
+}
+
+button.secondary {
+  background: #1f2d3d;
+  color: #9ed0ff;
+}
+
+button.ghost {
+  background: #272727;
+  color: #f1f1f1;
+  font-weight: 500;
+}
