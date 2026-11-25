@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "YT Focus Feed — Productive YouTube",
+  "name": "ProTube: Productive YouTube",
   "version": "2.0.0",
-  "description": "Replace YouTube's addictive homepage with a quality-scored domain feed, Zen focus mode, and watch-page distraction shield.",
+  "description": "A focused YouTube feed with topic-based discovery, Shorts controls, and distraction-reducing tools.",
   "icons": {
     "16": "icons/icon16.png",
     "48": "icons/icon48.png",
@@ -38,11 +38,15 @@
         "js/scoring.js",
         "js/content.js"
       ],
-      "css": ["css/content.css"],
+      "css": [
+        "css/content.css"
+      ],
       "run_at": "document_start"
     }
   ],
-  "permissions": ["storage"],
+  "permissions": [
+    "storage"
+  ],
   "host_permissions": [
     "https://www.googleapis.com/*",
     "https://www.youtube.com/*",

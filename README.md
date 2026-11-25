@@ -66,6 +66,21 @@ Most distraction blockers (like Unhook or DF Tube) simply wipe the homepage blan
 
 ---
 
+## Public distribution
+
+The project is prepared for Chromium-based browsers. The repository includes a validation script and a reproducible store-package ZIP builder:
+
+```bash
+python scripts/validate_extension.py
+python scripts/package_extension.py
+```
+
+The package is written to `dist/` and contains the runtime files only. GitHub Actions runs manifest checks, JavaScript syntax checks, and package creation on pushes and pull requests. A successful run exposes the ZIP as a downloadable workflow artifact.
+
+For Microsoft Edge Add-ons, register a free developer account in Microsoft Partner Center, create a new extension, and upload the generated ZIP. Complete the privacy disclosures, store listing, screenshots, and certification notes before submitting. See the official [Edge publishing guide](https://learn.microsoft.com/en-us/microsoft-edge/extensions/publish/publish-extension).
+
+For Chrome Web Store publication, a Chrome Web Store developer account and its one-time registration fee are still required. GitHub Releases and developer-mode installation are alternatives for testing, but are not equivalent to a one-click public Chrome Web Store installation.
+
 ## Project Architecture
 
 ```text
