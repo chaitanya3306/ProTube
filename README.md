@@ -50,7 +50,7 @@ Most distraction blockers (like Unhook or DF Tube) simply wipe the homepage blan
 
 1. Download or clone this repository:
    ```bash
-   git clone https://github.com/chaitanyashimpi/ProTube.git
+   git clone https://github.com/chaitanya3306/ProTube.git
    ```
    *(Or download the ZIP from Releases and extract it.)*
 2. Open Chrome and go to `chrome://extensions`.
