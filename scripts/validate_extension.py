@@ -24,7 +24,7 @@ if manifest.get("manifest_version") != 3:
     errors.append("manifest_version must be 3")
 if not manifest.get("name"):
     errors.append("manifest name is required")
-if not manifest.get("version") or not re.fullmatch(r"\\d+\\.\\d+\\.\\d+(?:\\.\\d+)?", manifest["version"]):
+if not manifest.get("version") or not re.fullmatch(r"\d+\.\d+\.\d+(?:\.\d+)?", manifest["version"]):
     errors.append("version must be a dotted numeric version")
 if len(manifest.get("description", "")) > 132:
     errors.append("manifest description must be 132 characters or fewer")
@@ -48,7 +48,6 @@ for script in manifest.get("content_scripts", []):
     for path in script.get("css", []):
         require_file(path, "Content stylesheet")
 
-# Keep the permission surface explicit and reviewable.
 allowed_permissions = {"storage"}
 unexpected = set(manifest.get("permissions", [])) - allowed_permissions
 if unexpected:
