@@ -1,4 +1,4 @@
-importScripts("constants.js", "presets.js", "storage.js", "scoring.js", "youtube-api.js");
+importScripts("constants.js", "presets.js", "storage.js", "clickbait.js", "scoring.js", "youtube-api.js");
 
 var BATCH_SIZE = 24;
 var MAX_POOL_SIZE = 700;
@@ -66,6 +66,13 @@ function handleMessage(message) {
   if (type === M.ADD_WATCH_TIME) return addWatchTime(message.seconds);
   if (type === M.START_FOCUS_TIMER) return startFocusTimer(message.minutes);
   if (type === M.STOP_FOCUS_TIMER) return stopFocusTimer();
+  if (type === M.FEEDBACK_VIDEO) return handleFeedbackVideo(message.video, message.verdict);
+  if (type === M.GET_LEARNED) return YTFeedStorage.getLearned();
+  if (type === M.RESET_LEARNED) {
+    return YTFeedStorage.resetLearned().then(function (l) {
+      return YTFeedStorage.clearCache().then(function () { return l; });
+    });
+  }
   if (type === M.SEARCH_CHANNEL) return handleSearchChannel(message.query);
   return Promise.reject(new Error("Unknown message: " + type));
 }
@@ -139,6 +146,89 @@ function toggleSaveVideo(video) {
   });
 }
 
+function clampLearnedDelta(n, min, max) {
+  return n < min ? min : (n > max ? max : n);
+}
+
+function pruneLearnedMap(map, maxEntries) {
+  var keys = Object.keys(map || {});
+  if (keys.length <= maxEntries) return map;
+  keys.sort(function (a, b) {
+    return (map[b].updatedAt || 0) - (map[a].updatedAt || 0);
+  });
+  var next = {};
+  keys.slice(0, maxEntries).forEach(function (k) { next[k] = map[k]; });
+  return next;
+}
+
+function recordLearnedSignal(video, channelDelta, phraseDelta) {
+  if (!video) return Promise.resolve(null);
+  var now = Date.now();
+  return YTFeedStorage.getLearned().then(function (learned) {
+    if (video.channelId && channelDelta) {
+      var prevCh = learned.channels[video.channelId] || { delta: 0, count: 0 };
+      learned.channels[video.channelId] = {
+        delta: clampLearnedDelta((prevCh.delta || 0) + channelDelta, -25, 35),
+        count: (prevCh.count || 0) + 1,
+        updatedAt: now
+      };
+      learned.channels = pruneLearnedMap(learned.channels, 300);
+    }
+    if (video.title && phraseDelta && typeof YTFeedClickbait !== "undefined") {
+      var tokens = YTFeedClickbait.extractFeedbackTokens(video.title);
+      tokens.forEach(function (tok) {
+        var prevPh = learned.phrases[tok] || { delta: 0, count: 0 };
+        learned.phrases[tok] = {
+          delta: clampLearnedDelta((prevPh.delta || 0) + phraseDelta, -15, 25),
+          count: (prevPh.count || 0) + 1,
+          updatedAt: now
+        };
+      });
+      learned.phrases = pruneLearnedMap(learned.phrases, 400);
+    }
+    return YTFeedStorage.saveLearned(learned);
+  });
+}
+
+function handleFeedbackVideo(video, verdict) {
+  if (!video || !video.videoId) return Promise.resolve({ ok: false });
+  var isBad = verdict === "clickbait";
+  var chDelta = isBad ? 12 : -10;
+  var phDelta = isBad ? 6 : -5;
+  var tasks = [recordLearnedSignal(video, chDelta, phDelta)];
+
+  if (isBad) {
+    tasks.push(
+      Promise.all([
+        YTFeedStorage.getHistory(),
+        YTFeedStorage.getPool(),
+        YTFeedStorage.getCache(),
+        YTFeedStorage.getStats()
+      ]).then(function (tuple) {
+        var history = pruneHistory(tuple[0], Date.now());
+        history.dismissed[video.videoId] = Date.now();
+        history.currentIds = history.currentIds.filter(function (id) { return id !== video.videoId; });
+        var sub = [YTFeedStorage.saveHistory(history)];
+        if (tuple[1] && Array.isArray(tuple[1].videos)) {
+          tuple[1].videos = tuple[1].videos.filter(function (v) { return v.videoId !== video.videoId; });
+          sub.push(YTFeedStorage.savePool(tuple[1]));
+        }
+        if (tuple[2] && Array.isArray(tuple[2].videos)) {
+          tuple[2].videos = tuple[2].videos.filter(function (v) { return v.videoId !== video.videoId; });
+          sub.push(YTFeedStorage.saveCache(tuple[2]));
+        }
+        var stats = tuple[3];
+        stats.filteredClickbaitWeek = (stats.filteredClickbaitWeek || 0) + 1;
+        sub.push(YTFeedStorage.saveStats(stats));
+        return Promise.all(sub);
+      })
+    );
+  }
+  return Promise.all(tasks).then(function (res) {
+    return { learned: res[0], verdict: verdict };
+  });
+}
+
 function dismissVideo(videoId) {
   if (!videoId) return Promise.resolve(true);
   return Promise.all([
@@ -146,10 +236,17 @@ function dismissVideo(videoId) {
     YTFeedStorage.getPool(),
     YTFeedStorage.getCache()
   ]).then(function (tuple) {
+    var targetVideo = null;
+    if (tuple[1] && Array.isArray(tuple[1].videos)) {
+      for (var i = 0; i < tuple[1].videos.length; i++) {
+        if (tuple[1].videos[i].videoId === videoId) { targetVideo = tuple[1].videos[i]; break; }
+      }
+    }
     var history = pruneHistory(tuple[0], Date.now());
     history.dismissed[videoId] = Date.now();
     history.currentIds = history.currentIds.filter(function (id) { return id !== videoId; });
     var tasks = [YTFeedStorage.saveHistory(history)];
+    if (targetVideo) tasks.push(recordLearnedSignal(targetVideo, 4, 2));
     if (tuple[1] && Array.isArray(tuple[1].videos)) {
       tuple[1].videos = tuple[1].videos.filter(function (v) { return v.videoId !== videoId; });
       tasks.push(YTFeedStorage.savePool(tuple[1]));
@@ -176,7 +273,10 @@ function blockChannel(channel) {
       list.push({ channelId: channel.channelId, title: channel.title || channel.channelId });
       settings.blockedChannels = list;
     }
-    var tasks = [YTFeedStorage.saveSettings(settings)];
+    var tasks = [
+      YTFeedStorage.saveSettings(settings),
+      recordLearnedSignal({ channelId: channel.channelId }, 18, 0)
+    ];
     if (tuple[1] && Array.isArray(tuple[1].videos)) {
       tuple[1].videos = tuple[1].videos.filter(function (v) { return v.channelId !== channel.channelId; });
       tasks.push(YTFeedStorage.savePool(tuple[1]));
@@ -242,6 +342,7 @@ function settingsSignature(settings) {
   var sources = effectiveSources(settings).map(function (s) {
     return { id: s.id, q: s.query, ch: s.channelId || "", score: s.score, kind: s.kind };
   });
+  var cb = settings.clickbait || {};
   return JSON.stringify({
     mode: settings.apiKey ? "api" : "rss",
     sources: sources,
@@ -249,7 +350,11 @@ function settingsSignature(settings) {
     weights: settings.weights || {},
     hideShorts: !settings.hideNative || settings.hideNative.shorts !== false,
     region: settings.regionCode || "US",
-    lang: settings.relevanceLanguage || "en"
+    lang: settings.relevanceLanguage || "en",
+    cbEnabled: cb.enabled !== false,
+    cbSensitivity: cb.sensitivity || "balanced",
+    cbTrustStarter: cb.trustStarterChannels !== false,
+    cbTrusted: (cb.trustedChannels || []).map(function (c) { return c.channelId || c; })
   });
 }
 
@@ -426,6 +531,8 @@ function serveBatchFromPool(settings, pool, history, prevCache, isManualRefresh)
     maxPerChannel: 2,
     hideShorts: hideShorts,
     minScore: minScore,
+    clickbaitEnabled: !settings.clickbait || settings.clickbait.enabled !== false,
+    minFeedSize: 6,
     now: now,
     seenCooldownMs: SEEN_COOLDOWN_MS
   });
@@ -442,6 +549,7 @@ function serveBatchFromPool(settings, pool, history, prevCache, isManualRefresh)
     servedAt: now,
     refreshSeq: refreshSeq,
     videos: selection.videos,
+    backfilledBorderline: !!selection.backfilledBorderline,
     hasMore: selection.unseenRemaining > 0 || pool.videos.length > selection.videos.length
   };
 
@@ -477,6 +585,8 @@ function appendBatchFromPool(settings, pool, history, prevCache, existingVideos,
     maxPerChannel: 2,
     hideShorts: hideShorts,
     minScore: minScore,
+    clickbaitEnabled: !settings.clickbait || settings.clickbait.enabled !== false,
+    minFeedSize: 6,
     now: now,
     seenCooldownMs: SEEN_COOLDOWN_MS
   });
@@ -578,94 +688,202 @@ function strategyParams(strategy, now) {
   return params;
 }
 
+function pruneClickbaitCache(entries, now) {
+  var keys = Object.keys(entries || {});
+  var ttl = 24 * 3600 * 1000;
+  var fresh = {};
+  keys.forEach(function (k) {
+    if (entries[k] && entries[k].ts && (now - entries[k].ts < ttl)) {
+      fresh[k] = entries[k];
+    }
+  });
+  var freshKeys = Object.keys(fresh);
+  if (freshKeys.length > 1000) {
+    freshKeys.sort(function (a, b) { return fresh[b].ts - fresh[a].ts; });
+    var capped = {};
+    freshKeys.slice(0, 1000).forEach(function (k) { capped[k] = fresh[k]; });
+    return capped;
+  }
+  return fresh;
+}
+
+function maybeRunLlmJudge(settings, videos) {
+  var cb = settings.clickbait || {};
+  var llm = cb.llm || {};
+  if (!llm.enabled || !llm.apiKey || typeof YTFeedClickbait === "undefined") {
+    return Promise.resolve(videos);
+  }
+  var hasPermission = new Promise(function (resolve) {
+    if (!chrome.permissions || !chrome.permissions.contains) { resolve(false); return; }
+    chrome.permissions.contains({ origins: ["https://api.openai.com/*"] }, function (ok) {
+      resolve(!!ok);
+    });
+  });
+  return hasPermission.then(function (ok) {
+    if (!ok) return videos;
+    return Promise.all([YTFeedStorage.getStats(), YTFeedStorage.getLlmCache()]).then(function (tuple) {
+      var stats = tuple[0];
+      var llmCache = tuple[1] || {};
+      var cap = Math.max(1, Math.min(100, Number(llm.dailyCap) || 20));
+      var borderline = videos.filter(function (v) {
+        return v && v.clickbait && v.clickbait.verdict === "borderline";
+      });
+      if (!borderline.length) return videos;
+
+      var callsMade = 0;
+      var tasks = borderline.slice(0, 5).map(function (v) {
+        if (llmCache[v.videoId]) {
+          applyLlmResult(v, llmCache[v.videoId]);
+          return Promise.resolve();
+        }
+        if ((stats.llmCallsToday || 0) + callsMade >= cap) return Promise.resolve();
+        callsMade++;
+        return YTFeedClickbait.assessWithLlm(v, cb).then(function (res) {
+          if (!res) return;
+          llmCache[v.videoId] = { verdict: res.verdict, reason: res.reason, ts: Date.now() };
+          applyLlmResult(v, res);
+        });
+      });
+
+      return Promise.all(tasks).then(function () {
+        var saves = [];
+        if (callsMade > 0) {
+          stats.llmCallsToday = (stats.llmCallsToday || 0) + callsMade;
+          saves.push(YTFeedStorage.saveStats(stats));
+          saves.push(YTFeedStorage.saveLlmCache(pruneClickbaitCache(llmCache, Date.now())));
+        }
+        return Promise.all(saves).then(function () {
+          return videos.filter(function (v) {
+            return !(v && v.clickbait && v.clickbait.verdict === "clickbait");
+          });
+        });
+      });
+    });
+  });
+}
+
+function applyLlmResult(video, res) {
+  if (!video || !video.clickbait || !res) return;
+  video.clickbait.verdict = res.verdict;
+  video.clickbait.reasons = ["LLM: " + res.reason].concat(video.clickbait.reasons || []).slice(0, 4);
+  if (res.verdict === "good") {
+    video.clickbait.valueScore = Math.max(video.clickbait.valueScore, 75);
+    video.score += 12;
+  } else if (res.verdict === "clickbait") {
+    video.clickbait.valueScore = Math.min(video.clickbait.valueScore, 20);
+  }
+}
+
 function fetchAndMergePool(settings, sig, existingPool, advanceStrategy, history) {
   var now = Date.now();
   var sources = effectiveSources(settings);
   var prevCursors = (existingPool && existingPool.cursors) || {};
 
-  var jobs = sources.map(function (source) {
-    if (source.kind === "rss") {
-      return fetchRssSource(settings, source);
-    }
-    var strategies = strategiesForSource(source);
-    var cursor = prevCursors[source.id] || { strategyIndex: 0, strategyTokens: {}, strategyPages: {} };
-    var idx = typeof cursor.strategyIndex === "number" ? cursor.strategyIndex % strategies.length : 0;
-    if (advanceStrategy && prevCursors[source.id]) {
-      idx = (idx + 1) % strategies.length;
-    }
-    var strategyTokens = Object.assign({}, cursor.strategyTokens || {});
-    var strategyPages = Object.assign({}, cursor.strategyPages || {});
-    var pageToken = strategyTokens[idx] || "";
-    var pagesDone = strategyPages[idx] || 0;
-    if (pagesDone >= MAX_PAGES_PER_STRATEGY) {
-      pageToken = "";
-      pagesDone = 0;
-    }
+  return Promise.all([
+    YTFeedStorage.getLearned(),
+    YTFeedStorage.getClickbaitCache(),
+    YTFeedStorage.getStats()
+  ]).then(function (meta) {
+    var learned = meta[0];
+    var cbCacheMap = pruneClickbaitCache((meta[1] && meta[1].entries) || {}, now);
+    var stats = meta[2];
+    var statsOut = { filteredClickbait: 0, backfilledBorderline: false };
+    var scoreOpts = { learned: learned, cbCacheMap: cbCacheMap, now: now, statsOut: statsOut };
 
-    var strategy = strategies[idx];
-    return fetchSource(settings, source, strategy, pageToken, now).then(function (res) {
-      if (res.error) return res;
-      if (res.nextPageToken && pagesDone + 1 < MAX_PAGES_PER_STRATEGY) {
-        strategyTokens[idx] = res.nextPageToken;
-        strategyPages[idx] = pagesDone + 1;
-      } else {
-        strategyTokens[idx] = "";
-        strategyPages[idx] = 0;
+    var jobs = sources.map(function (source) {
+      if (source.kind === "rss") {
+        return fetchRssSource(settings, source, scoreOpts);
       }
-      res.nextCursor = {
-        strategyIndex: idx,
-        strategyTokens: strategyTokens,
-        strategyPages: strategyPages
-      };
-      return res;
-    });
-  });
-
-  return Promise.all(jobs).then(function (results) {
-    var incoming = [];
-    var nextCursors = {};
-    var errors = [];
-
-    results.forEach(function (res) {
-      if (res.error) {
-        errors.push(res.error);
-        if (prevCursors[res.source.id]) nextCursors[res.source.id] = prevCursors[res.source.id];
-      } else {
-        incoming = incoming.concat(res.videos || []);
-        if (res.nextCursor) nextCursors[res.source.id] = res.nextCursor;
+      var strategies = strategiesForSource(source);
+      var cursor = prevCursors[source.id] || { strategyIndex: 0, strategyTokens: {}, strategyPages: {} };
+      var idx = typeof cursor.strategyIndex === "number" ? cursor.strategyIndex % strategies.length : 0;
+      if (advanceStrategy && prevCursors[source.id]) {
+        idx = (idx + 1) % strategies.length;
       }
-    });
+      var strategyTokens = Object.assign({}, cursor.strategyTokens || {});
+      var strategyPages = Object.assign({}, cursor.strategyPages || {});
+      var pageToken = strategyTokens[idx] || "";
+      var pagesDone = strategyPages[idx] || 0;
+      if (pagesDone >= MAX_PAGES_PER_STRATEGY) {
+        pageToken = "";
+        pagesDone = 0;
+      }
 
-    if (errors.length === results.length && errors.length > 0) {
-      throw new Error(errors[0]);
-    }
-
-    var merged = YTFeedScoring.dedupe(
-      (existingPool && Array.isArray(existingPool.videos) ? existingPool.videos : []).concat(incoming)
-    );
-
-    if (merged.length > MAX_POOL_SIZE) {
-      var seenMap = (history && history.seen) || {};
-      merged.sort(function (a, b) {
-        var seenA = seenMap[a.videoId] && (now - seenMap[a.videoId] < SEEN_COOLDOWN_MS) ? 1 : 0;
-        var seenB = seenMap[b.videoId] && (now - seenMap[b.videoId] < SEEN_COOLDOWN_MS) ? 1 : 0;
-        if (seenA !== seenB) return seenA - seenB;
-        return (b.score || 0) - (a.score || 0);
+      var strategy = strategies[idx];
+      return fetchSource(settings, source, strategy, pageToken, now, scoreOpts).then(function (res) {
+        if (res.error) return res;
+        if (res.nextPageToken && pagesDone + 1 < MAX_PAGES_PER_STRATEGY) {
+          strategyTokens[idx] = res.nextPageToken;
+          strategyPages[idx] = pagesDone + 1;
+        } else {
+          strategyTokens[idx] = "";
+          strategyPages[idx] = 0;
+        }
+        res.nextCursor = {
+          strategyIndex: idx,
+          strategyTokens: strategyTokens,
+          strategyPages: strategyPages
+        };
+        return res;
       });
-      merged = merged.slice(0, MAX_POOL_SIZE);
-    }
+    });
 
-    return {
-      signature: sig,
-      fetchedAt: now,
-      rotationOffset: (existingPool && existingPool.rotationOffset) || 0,
-      cursors: nextCursors,
-      videos: merged
-    };
+    return Promise.all(jobs).then(function (results) {
+      var incoming = [];
+      var nextCursors = {};
+      var errors = [];
+
+      results.forEach(function (res) {
+        if (res.error) {
+          errors.push(res.error);
+          if (prevCursors[res.source.id]) nextCursors[res.source.id] = prevCursors[res.source.id];
+        } else {
+          incoming = incoming.concat(res.videos || []);
+          if (res.nextCursor) nextCursors[res.source.id] = res.nextCursor;
+        }
+      });
+
+      if (errors.length === results.length && errors.length > 0) {
+        throw new Error(errors[0]);
+      }
+
+      return maybeRunLlmJudge(settings, incoming).then(function (judgedIncoming) {
+        var merged = YTFeedScoring.dedupe(
+          (existingPool && Array.isArray(existingPool.videos) ? existingPool.videos : []).concat(judgedIncoming)
+        );
+
+        if (merged.length > MAX_POOL_SIZE) {
+          var seenMap = (history && history.seen) || {};
+          merged.sort(function (a, b) {
+            var seenA = seenMap[a.videoId] && (now - seenMap[a.videoId] < SEEN_COOLDOWN_MS) ? 1 : 0;
+            var seenB = seenMap[b.videoId] && (now - seenMap[b.videoId] < SEEN_COOLDOWN_MS) ? 1 : 0;
+            if (seenA !== seenB) return seenA - seenB;
+            return (b.score || 0) - (a.score || 0);
+          });
+          merged = merged.slice(0, MAX_POOL_SIZE);
+        }
+
+        var sideWrites = [YTFeedStorage.saveClickbaitCache({ entries: pruneClickbaitCache(cbCacheMap, now) })];
+        if (statsOut.filteredClickbait > 0) {
+          stats.filteredClickbaitWeek = (stats.filteredClickbaitWeek || 0) + statsOut.filteredClickbait;
+          sideWrites.push(YTFeedStorage.saveStats(stats));
+        }
+
+        return Promise.all(sideWrites).then(function () {
+          return {
+            signature: sig,
+            fetchedAt: now,
+            rotationOffset: (existingPool && existingPool.rotationOffset) || 0,
+            cursors: nextCursors,
+            videos: merged
+          };
+        });
+      });
+    });
   });
 }
 
-function fetchRssSource(settings, source) {
+function fetchRssSource(settings, source, scoreOpts) {
   return YTFeedApi.fetchChannelRss(source.channelId)
     .then(function (rss) {
       var videos = (rss.videos || []).map(function (video) {
@@ -679,7 +897,7 @@ function fetchRssSource(settings, source) {
       return {
         source: source,
         nextPageToken: "",
-        videos: YTFeedScoring.filterAndScore(videos, source, settings)
+        videos: YTFeedScoring.filterAndScore(videos, source, settings, scoreOpts)
       };
     })
     .catch(function (error) {
@@ -692,7 +910,7 @@ function fetchRssSource(settings, source) {
     });
 }
 
-function fetchSource(settings, source, strategy, pageToken, now) {
+function fetchSource(settings, source, strategy, pageToken, now, scoreOpts) {
   var sParams = strategyParams(strategy, now);
   return YTFeedApi.searchVideos(settings.apiKey, {
     query: source.query,
@@ -716,7 +934,7 @@ function fetchSource(settings, source, strategy, pageToken, now) {
         return {
           source: source,
           nextPageToken: result.nextPageToken || "",
-          videos: YTFeedScoring.filterAndScore(videos, source, settings)
+          videos: YTFeedScoring.filterAndScore(videos, source, settings, scoreOpts)
         };
       });
     })
@@ -749,6 +967,7 @@ function normalizeCache(cache) {
     fetchedAt: cache.fetchedAt,
     servedAt: cache.servedAt || cache.fetchedAt,
     refreshSeq: cache.refreshSeq || 0,
+    backfilledBorderline: !!cache.backfilledBorderline,
     videos: videos || [],
     hasMore: !!cache.hasMore
   };

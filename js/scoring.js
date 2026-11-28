@@ -6,6 +6,15 @@
 var YTFeedScoring = (function () {
   "use strict";
 
+  var Constants = typeof YTFeedConstants !== "undefined"
+    ? YTFeedConstants
+    : (typeof require !== "undefined" ? require("./constants.js") : null);
+  var Clickbait = typeof YTFeedClickbait !== "undefined"
+    ? YTFeedClickbait
+    : (typeof require !== "undefined" ? require("./clickbait.js") : null);
+
+  var CB_CACHE_TTL_MS = 24 * 3600 * 1000;
+
   var TOPIC_STOP_WORDS = {
     a: true, an: true, and: true, are: true, as: true, at: true, be: true,
     best: true, by: true, course: true, deep: true, dive: true, documentary: true,
@@ -83,9 +92,10 @@ var YTFeedScoring = (function () {
     return 0;
   }
 
-  function scoreVideo(video, topic, settings) {
-    var weights = (settings && settings.weights) || YTFeedConstants.DEFAULT_WEIGHTS;
-    var sets = YTFeedConstants.KEYWORD_SETS;
+  function scoreVideo(video, topic, settings, options) {
+    var opts = options || {};
+    var weights = (settings && settings.weights) || Constants.DEFAULT_WEIGHTS;
+    var sets = Constants.KEYWORD_SETS;
     var titleLower = (video.title || "").toLowerCase();
     var tagsText = Array.isArray(video.tags) ? video.tags.join(" ") : "";
     var blob = [
@@ -237,6 +247,38 @@ var YTFeedScoring = (function () {
       reasons.push("upcoming -100");
     }
 
+    var cbEnabled = !settings || !settings.clickbait || settings.clickbait.enabled !== false;
+    if (cbEnabled && Clickbait) {
+      var cbCache = opts.cbCacheMap || null;
+      var now = opts.now || Date.now();
+      var sensitivity = (settings && settings.clickbait && settings.clickbait.sensitivity) || "balanced";
+      var cached = cbCache && video.videoId ? cbCache[video.videoId] : null;
+      var cb;
+      if (cached && cached.ts && (now - cached.ts < CB_CACHE_TTL_MS) && cached.sensitivity === sensitivity && cached.res) {
+        cb = cached.res;
+      } else {
+        cb = Clickbait.assessClickbait(video, settings, opts.learned || null);
+        if (cbCache && video.videoId) {
+          cbCache[video.videoId] = { ts: now, sensitivity: sensitivity, res: cb };
+        }
+      }
+      video.clickbait = {
+        clickbaitScore: cb.clickbaitScore,
+        valueScore: cb.valueScore,
+        verdict: cb.verdict,
+        reasons: cb.reasons
+      };
+      var valueAdj = Math.round((cb.valueScore - 50) * 0.35);
+      if (cb.verdict === "borderline") {
+        score -= 12;
+        reasons.push("borderline -12");
+      }
+      if (valueAdj !== 0) {
+        score += valueAdj;
+        reasons.push("value " + (valueAdj > 0 ? "+" : "") + valueAdj);
+      }
+    }
+
     video.score = score;
     video.scoreReasons = reasons;
     video.durationLabel = formatDuration(video.duration);
@@ -244,11 +286,13 @@ var YTFeedScoring = (function () {
     return video;
   }
 
-  function rankSection(videos, topic, settings) {
+  function rankSection(videos, topic, settings, options) {
+    var opts = options || {};
     var minScore = (settings && settings.weights && typeof settings.weights.minScore === "number")
       ? settings.weights.minScore
       : 0;
     var hideShorts = !settings || !settings.hideNative || settings.hideNative.shorts !== false;
+    var cbEnabled = !settings || !settings.clickbait || settings.clickbait.enabled !== false;
     var blocked = {};
     if (settings && Array.isArray(settings.blockedChannels)) {
       settings.blockedChannels.forEach(function (b) {
@@ -256,27 +300,60 @@ var YTFeedScoring = (function () {
       });
     }
 
-    var ranked = videos
+    var baseScored = videos
       .filter(function (video) {
         return video && !blocked[video.channelId];
       })
       .map(function (video) {
-        return scoreVideo(video, topic, settings);
+        return scoreVideo(video, topic, settings, opts);
       })
       .filter(function (video) {
         if (hideShorts && video.isShort) return false;
         if (video.liveBroadcastContent === "upcoming") return false;
-        return video.score >= minScore;
-      })
-      .sort(function (a, b) {
-        return b.score - a.score;
+        return true;
       });
 
-    return ranked;
+    var kept = [];
+    var rejectedClickbait = [];
+    baseScored.forEach(function (video) {
+      if (cbEnabled && video.clickbait && video.clickbait.verdict === "clickbait") {
+        rejectedClickbait.push(video);
+        return;
+      }
+      if (video.score >= minScore) kept.push(video);
+    });
+
+    if (opts.statsOut) {
+      opts.statsOut.filteredClickbait = (opts.statsOut.filteredClickbait || 0) + rejectedClickbait.length;
+    }
+
+    // Fail-open safety: never return empty if we had valid non-short candidates
+    if (!kept.length && baseScored.length) {
+      var backfill = baseScored
+        .filter(function (v) { return !v.clickbait || v.clickbait.verdict !== "clickbait"; })
+        .sort(function (a, b) {
+          var va = (a.clickbait && a.clickbait.valueScore) || 50;
+          var vb = (b.clickbait && b.clickbait.valueScore) || 50;
+          return vb - va || b.score - a.score;
+        });
+      if (!backfill.length) {
+        backfill = rejectedClickbait.slice().sort(function (a, b) {
+          return ((b.clickbait && b.clickbait.valueScore) || 0) - ((a.clickbait && a.clickbait.valueScore) || 0);
+        });
+      }
+      kept = backfill.slice(0, Math.min(6, backfill.length));
+      if (opts.statsOut) opts.statsOut.backfilledBorderline = true;
+    }
+
+    kept.sort(function (a, b) {
+      return b.score - a.score;
+    });
+
+    return kept;
   }
 
-  function filterAndScore(videos, source, settings) {
-    return rankSection(videos, source, settings);
+  function filterAndScore(videos, source, settings, options) {
+    return rankSection(videos, source, settings, options);
   }
 
   function interleave(videos) {
@@ -348,14 +425,39 @@ var YTFeedScoring = (function () {
     var rotationOffset = opts.rotationOffset || 0;
     var hideShorts = opts.hideShorts !== false;
     var minScore = typeof opts.minScore === "number" ? opts.minScore : 0;
+    var cbEnabled = opts.clickbaitEnabled !== false;
+    var minFeedSize = typeof opts.minFeedSize === "number" ? opts.minFeedSize : 6;
+    var backfilledBorderline = false;
 
-    var eligible = dedupe(videos).filter(function (v) {
+    var baseCandidates = dedupe(videos).filter(function (v) {
       if (hideShorts && (v.isShort || isShort(v.duration, v))) return false;
       if (v.liveBroadcastContent === "upcoming") return false;
       if (opts.blockedChannelIds && opts.blockedChannelIds[v.channelId]) return false;
       if (opts.dismissedIds && opts.dismissedIds[v.videoId]) return false;
+      return true;
+    });
+
+    var eligible = baseCandidates.filter(function (v) {
+      if (cbEnabled && v.clickbait && v.clickbait.verdict === "clickbait") return false;
       return (Number(v.score) || 0) >= minScore;
     });
+
+    if (eligible.length < Math.min(minFeedSize, baseCandidates.length)) {
+      var inEligible = {};
+      eligible.forEach(function (v) { inEligible[v.videoId] = true; });
+      var extras = baseCandidates
+        .filter(function (v) { return !inEligible[v.videoId]; })
+        .sort(function (a, b) {
+          var va = (a.clickbait && a.clickbait.valueScore) || 50;
+          var vb = (b.clickbait && b.clickbait.valueScore) || 50;
+          return vb - va || (b.score || 0) - (a.score || 0);
+        });
+      var needed = Math.min(minFeedSize, baseCandidates.length) - eligible.length;
+      if (needed > 0 && extras.length) {
+        eligible = eligible.concat(extras.slice(0, needed));
+        backfilledBorderline = true;
+      }
+    }
 
     var unseen = [];
     var seenRecently = [];
@@ -449,6 +551,7 @@ var YTFeedScoring = (function () {
 
     return {
       videos: res.picked,
+      backfilledBorderline: backfilledBorderline,
       unseenRemaining: Math.max(0, unseen.length - res.picked.filter(function (v) {
         var seenAt = seenMap[v.videoId];
         return !excludeMap[v.videoId] && (!seenAt || (now - seenAt >= cooldownMs));
@@ -503,3 +606,7 @@ var YTFeedScoring = (function () {
     timeAgo: timeAgo
   };
 })();
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = YTFeedScoring;
+}

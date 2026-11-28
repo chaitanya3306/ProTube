@@ -17,15 +17,34 @@ var YTFeedApi = (function () {
     return parts.join("&");
   }
 
+  function fetchWithTimeout(url, timeoutMs) {
+    var controller = typeof AbortController !== "undefined" ? new AbortController() : null;
+    var timer = controller ? setTimeout(function () { controller.abort(); }, timeoutMs || 12000) : null;
+    return fetch(url, controller ? { signal: controller.signal } : undefined)
+      .finally(function () {
+        if (timer) clearTimeout(timer);
+      });
+  }
+
   function request(path, params) {
     var url = BASE + path + "?" + queryString(params);
-    return fetch(url).then(function (res) {
-      return res.json().then(function (body) {
+    return fetchWithTimeout(url, 12000).then(function (res) {
+      return res.text().then(function (text) {
+        var body = {};
+        try {
+          body = text ? JSON.parse(text) : {};
+        } catch (_e) {
+          if (!res.ok) throw new Error("YouTube API request failed (" + res.status + ")");
+          throw new Error("Invalid JSON from YouTube API");
+        }
         if (!res.ok || body.error) {
           var message =
             (body.error && body.error.message) ||
             "YouTube API request failed (" + res.status + ")";
-          throw new Error(message);
+          var err = new Error(message);
+          err.status = res.status;
+          err.reason = body.error && body.error.errors && body.error.errors[0] && body.error.errors[0].reason;
+          throw err;
         }
         return body;
       });
@@ -253,7 +272,15 @@ var YTFeedApi = (function () {
       var description = tagText(block, "media:description");
       var viewsMatch = block.match(/<media:statistics[^>]*\bviews="(\d+)"/i);
       var thumbMatch = block.match(/<media:thumbnail[^>]*\burl="([^"]+)"/i);
-      var ratingMatch = block.match(/<media:starRating[^>]*\baverage="([\d.]+)"[^>]*\bcount="(\d+)"/i);
+      var starTagMatch = block.match(/<media:starRating\b([^>]*)>/i);
+      var starAvg = 0;
+      var starCount = 0;
+      if (starTagMatch) {
+        var avgM = starTagMatch[1].match(/\baverage="([\d.]+)"/i);
+        var cntM = starTagMatch[1].match(/\bcount="(\d+)"/i);
+        starAvg = avgM ? Number(avgM[1]) : 0;
+        starCount = cntM ? Number(cntM[1]) : 0;
+      }
       var linkMatch = block.match(/<link[^>]*\bhref="([^"]+)"/i);
       var href = linkMatch ? linkMatch[1] : "";
       if (href.indexOf("/shorts/") !== -1) continue;
@@ -268,7 +295,9 @@ var YTFeedApi = (function () {
         thumbnail: thumbMatch ? decodeXml(thumbMatch[1]) : "https://i.ytimg.com/vi/" + videoId + "/hqdefault.jpg",
         duration: "",
         viewCount: viewsMatch ? Number(viewsMatch[1]) : 0,
-        likeCount: ratingMatch ? Math.round(Number(ratingMatch[2]) * (Number(ratingMatch[1]) / 5)) : 0,
+        likeCount: starCount && starAvg ? Math.round(starCount * (starAvg / 5)) : 0,
+        starRatingAverage: starAvg || undefined,
+        starRatingCount: starCount || undefined,
         isRssStarter: true
       });
     }
@@ -280,7 +309,7 @@ var YTFeedApi = (function () {
 
   function fetchChannelRss(channelId) {
     var url = "https://www.youtube.com/feeds/videos.xml?channel_id=" + encodeURIComponent(channelId);
-    return fetch(url).then(function (res) {
+    return fetchWithTimeout(url, 12000).then(function (res) {
       if (!res.ok) throw new Error("RSS feed failed (" + res.status + ")");
       return res.text();
     }).then(parseRssFeed);

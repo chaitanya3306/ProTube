@@ -152,3 +152,7 @@ var YTFeedPresets = (function () {
     starterSourcesForTopics: starterSourcesForTopics
   };
 })();
+
+if (typeof module !== "undefined" && module.exports) {
+  module.exports = YTFeedPresets;
+}
