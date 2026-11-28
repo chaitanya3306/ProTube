@@ -70,6 +70,65 @@
     </section>
 
     <section class="card">
+      <h2>Clickbait &amp; Value Detection</h2>
+      <p class="help">Automatically down-ranks or filters out curiosity-gap titles, hype spam, and low-value content before it reaches your feed.</p>
+      <div class="row-inline" style="margin-bottom: 12px;">
+        <span id="clickbaitStats" class="quota-pill">Filtered 0 clickbait videos this week</span>
+        <button id="resetLearnedBtn" type="button">Reset learned data</button>
+      </div>
+      <div class="grid-2">
+        <label class="field">
+          <span>Filter sensitivity</span>
+          <select id="cbSensitivity">
+            <option value="strict">Strict (Aggressive filtering)</option>
+            <option value="balanced">Balanced (Recommended)</option>
+            <option value="lenient">Lenient (Only obvious clickbait)</option>
+          </select>
+        </label>
+        <div class="checks" style="align-self: end; padding-bottom: 10px;">
+          <label class="check"><input id="cbEnabled" type="checkbox" /> Enable clickbait filter</label>
+        </div>
+      </div>
+      <div class="checks" style="margin: 8px 0 14px;">
+        <label class="check"><input id="cbShowBadge" type="checkbox" /> Show Value badge on cards</label>
+        <label class="check"><input id="cbShowReasons" type="checkbox" /> Show why this was ranked (tooltip)</label>
+        <label class="check"><input id="cbTrustStarter" type="checkbox" /> Trust curated starter channels</label>
+      </div>
+
+      <h3 style="font-size:15px; margin: 14px 0 6px;">Trusted Channels</h3>
+      <p class="help">Trusted channels receive a value bonus and are never hard-rejected by the filter.</p>
+      <div id="trustedChannels" class="list"></div>
+      <form id="trustedForm" class="inline-form">
+        <input id="trustedQuery" placeholder="Channel name, @handle, or UC... URL" required />
+        <input id="trustedNote" placeholder="Optional note" disabled value="Trusted" />
+        <span></span>
+        <button type="submit">Find &amp; trust</button>
+      </form>
+      <div id="trustedResults" class="list"></div>
+
+      <details class="guide" style="margin-top: 16px;">
+        <summary>Optional: AI Judge for borderline videos (Off by default)</summary>
+        <p class="help" style="margin-top: 8px;">
+          <strong>Privacy notice:</strong> Disabled by default. If enabled, ProTube sends <em>only</em> the video title, channel name, duration, and a 250-character description excerpt for borderline videos to OpenAI using your own API key. Results are cached locally and capped daily. Enabling this requests runtime host permission for <code>api.openai.com</code>.
+        </p>
+        <label class="check" style="margin-bottom: 8px;">
+          <input id="cbLlmEnabled" type="checkbox" />
+          Enable AI Judge for borderline videos
+        </label>
+        <div class="grid-2">
+          <label class="field">
+            <span>OpenAI API key (excluded from exports)</span>
+            <input id="cbLlmKey" type="password" autocomplete="off" placeholder="sk-... (optional)" />
+          </label>
+          <label class="field">
+            <span>Daily LLM call cap</span>
+            <input id="cbLlmCap" type="number" min="1" max="100" value="20" />
+          </label>
+        </div>
+      </details>
+    </section>
+
+    <section class="card">
       <h2>Distraction Shield (Home &amp; Watch Pages)</h2>
       <p class="help">Block algorithmic traps across the homepage, watch sidebar, comments, end screens, and Shorts.</p>
       <div id="hideNative" class="checks"></div>

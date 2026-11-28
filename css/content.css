@@ -291,11 +291,38 @@ html.ytcf-hide-views .ytcf-views {
   line-height: 1;
 }
 
+.ytcf-value-badge {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  background: rgba(15, 15, 15, 0.82);
+  color: #8ce99a;
+  border: 1px solid rgba(140, 233, 154, 0.35);
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+}
+
+.ytcf-value-badge.ytcf-verdict-borderline {
+  color: #ffd43b;
+  border-color: rgba(255, 212, 59, 0.4);
+}
+
+.ytcf-value-badge.ytcf-verdict-clickbait {
+  color: #ff8787;
+  border-color: rgba(255, 135, 135, 0.4);
+}
+
 .ytcf-card-actions {
   position: absolute;
   right: 6px;
   top: 6px;
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: calc(100% - 12px);
   gap: 4px;
   opacity: 0;
   transition: opacity 0.15s ease;

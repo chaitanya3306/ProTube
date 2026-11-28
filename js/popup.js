@@ -36,6 +36,12 @@
       });
     });
 
+    document.getElementById("toggleClickbait").addEventListener("change", function (e) {
+      if (!settings) return;
+      settings.clickbait = settings.clickbait || {};
+      settings.clickbait.enabled = e.target.checked;
+      saveQuickSettings();
+    });
     document.getElementById("toggleZen").addEventListener("change", function (e) {
       if (!settings) return;
       settings.homeMode = e.target.checked ? "zen" : "feed";
@@ -72,7 +78,11 @@
   });
 
   function saveQuickSettings() {
-    YTFeedStorage.saveSettings(settings).then(function () {
+    chrome.runtime.sendMessage({ type: YTFeedConstants.MESSAGE.SAVE_SETTINGS, settings: settings }, function () {
+      if (chrome.runtime.lastError) {
+        YTFeedStorage.saveSettings(settings).then(renderModeBadge);
+        return;
+      }
       renderModeBadge();
     });
   }
@@ -109,6 +119,7 @@
     document.getElementById("watchToday").textContent = "Today: " + mins + "m";
     document.getElementById("savedCount").textContent = "Saved: " + savedCount;
 
+    document.getElementById("toggleClickbait").checked = !settings.clickbait || settings.clickbait.enabled !== false;
     document.getElementById("toggleZen").checked = settings.homeMode === "zen";
     document.getElementById("toggleSidebar").checked = settings.hideNative.watchSidebar !== false;
     document.getElementById("toggleComments").checked = settings.hideNative.collapseComments !== false;

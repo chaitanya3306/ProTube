@@ -77,6 +77,8 @@
 
   function feedConfigChanged(prev, next) {
     if (!prev || !next) return true;
+    var prevCb = prev.clickbait || {};
+    var nextCb = next.clickbait || {};
     return (
       prev.apiKey !== next.apiKey ||
       prev.homeMode !== next.homeMode ||
@@ -84,7 +86,23 @@
       prev.relevanceLanguage !== next.relevanceLanguage ||
       JSON.stringify(prev.topics || []) !== JSON.stringify(next.topics || []) ||
       JSON.stringify(prev.channels || []) !== JSON.stringify(next.channels || []) ||
-      JSON.stringify(prev.weights || {}) !== JSON.stringify(next.weights || {})
+      JSON.stringify(prev.blockedChannels || []) !== JSON.stringify(next.blockedChannels || []) ||
+      JSON.stringify(prev.weights || {}) !== JSON.stringify(next.weights || {}) ||
+      prevCb.enabled !== nextCb.enabled ||
+      prevCb.sensitivity !== nextCb.sensitivity ||
+      prevCb.trustStarterChannels !== nextCb.trustStarterChannels ||
+      JSON.stringify(prevCb.trustedChannels || []) !== JSON.stringify(nextCb.trustedChannels || [])
+    );
+  }
+
+  function uiDisplayChanged(prev, next) {
+    if (!prev || !next) return false;
+    var prevCb = prev.clickbait || {};
+    var nextCb = next.clickbait || {};
+    return (
+      JSON.stringify(prev.calmUI || {}) !== JSON.stringify(next.calmUI || {}) ||
+      prevCb.showBadge !== nextCb.showBadge ||
+      prevCb.showReasons !== nextCb.showReasons
     );
   }
 
@@ -98,6 +116,8 @@
           if (isHomePath() && !fetchInFlight && feedConfigChanged(oldVal, newVal)) {
             lastFeed = null;
             loadFeed(false);
+          } else if (isHomePath() && lastFeed && uiDisplayChanged(oldVal, newVal)) {
+            renderFeed(lastFeed, true);
           }
         });
       }
@@ -648,6 +668,9 @@
     var starterBanner = (feed && feed.feedMode === "rss" && activeFilter !== "saved")
       ? '<div class="ytcf-starter-tip">Starter Feed active (official educational channels, 0 API key needed). <button type="button" class="ytcf-link-btn" id="ytcf-open-settings-tip">Add a free YouTube API key</button> for unlimited topic search.</div>'
       : "";
+    var backfillBanner = (feed && feed.backfilledBorderline && activeFilter !== "saved")
+      ? '<div class="ytcf-notice">Showing some borderline-scored videos to keep your feed full. Adjust Clickbait Sensitivity in Settings if needed.</div>'
+      : "";
 
     var initial = videos.slice(0, PAGE_SIZE);
     renderedIds = {};
@@ -659,8 +682,9 @@
       '<div class="ytcf-shell">' +
       toolbarHtml(allVideos) +
       starterBanner +
+      backfillBanner +
       '<div class="ytcf-grid">' +
-      initial.map(videoCardHtml).join("") +
+      initial.map(safeVideoCardHtml).join("") +
       '</div><div class="ytcf-sentinel"></div></div>';
     rootEl.scrollTop = 0;
     bindChrome();
@@ -677,9 +701,17 @@
     });
     if (!fresh.length) return;
     var wrap = document.createElement("div");
-    wrap.innerHTML = fresh.map(videoCardHtml).join("");
+    wrap.innerHTML = fresh.map(safeVideoCardHtml).join("");
     while (wrap.firstChild) grid.appendChild(wrap.firstChild);
     bindCardActions(grid);
+  }
+
+  function safeVideoCardHtml(video) {
+    try {
+      return videoCardHtml(video);
+    } catch (_err) {
+      return "";
+    }
   }
 
   function videoCardHtml(video) {
@@ -694,9 +726,21 @@
     var useCleanTitle = !currentSettings || !currentSettings.calmUI || currentSettings.calmUI.cleanTitles !== false;
     var displayTitle = useCleanTitle ? YTFeedScoring.cleanTitle(video.title) : video.title;
     var isSaved = !!savedIds[video.videoId];
-    var reasonsText = Array.isArray(video.scoreReasons) && video.scoreReasons.length
-      ? "Score " + Math.round(video.score || 0) + ": " + video.scoreReasons.slice(0, 4).join(", ")
-      : displayTitle;
+    var cb = video.clickbait || null;
+    var cbSettings = (currentSettings && currentSettings.clickbait) || {};
+    var showBadge = cb && cbSettings.enabled !== false && cbSettings.showBadge !== false;
+    var showReasons = cbSettings.showReasons !== false;
+    var reasonParts = [];
+    if (showReasons && cb && Array.isArray(cb.reasons) && cb.reasons.length) {
+      reasonParts.push("Value " + cb.valueScore + " (" + cb.verdict + "): " + cb.reasons.join("; "));
+    }
+    if (showReasons && Array.isArray(video.scoreReasons) && video.scoreReasons.length) {
+      reasonParts.push("Rank " + Math.round(video.score || 0) + ": " + video.scoreReasons.slice(0, 4).join(", "));
+    }
+    var reasonsText = reasonParts.length ? reasonParts.join(" | ") : displayTitle;
+    var badgeHtml = showBadge
+      ? '<span class="ytcf-value-badge ytcf-verdict-' + escapeAttr(cb.verdict || "good") + '" title="' + escapeAttr(reasonsText) + '">Value ' + Math.round(cb.valueScore) + "</span>"
+      : "";
 
     return (
       '<a class="ytcf-card" href="' +
@@ -715,6 +759,7 @@
       (video.sourceName
         ? '<span class="ytcf-domain-tag">' + escapeHtml(video.sourceName) + "</span>"
         : "") +
+      badgeHtml +
       (video.durationLabel
         ? '<span class="ytcf-duration">' + escapeHtml(video.durationLabel) + "</span>"
         : "") +
@@ -722,6 +767,8 @@
       '<button type="button" class="ytcf-card-btn' + (isSaved ? " is-saved" : "") + '" data-action="save" title="Save to Watch Queue">' +
       (isSaved ? "Saved" : "+ Save") +
       "</button>" +
+      '<button type="button" class="ytcf-card-btn" data-action="good" title="Actually good (boosts similar)">Good</button>' +
+      '<button type="button" class="ytcf-card-btn" data-action="clickbait" title="Not useful / Clickbait">Clickbait</button>' +
       '<button type="button" class="ytcf-card-btn" data-action="dismiss" title="Not interested / hide video">Hide</button>' +
       (video.channelId
         ? '<button type="button" class="ytcf-card-btn" data-action="block" title="Mute this channel">Mute</button>'
@@ -788,6 +835,24 @@
             btn.textContent = res.saved ? "Saved" : "+ Save";
             updateSavedBadgeAndView();
           });
+        } else if (action === "good" && video) {
+          btn.classList.add("is-saved");
+          btn.textContent = "✓ Good";
+          send(YTFeedConstants.MESSAGE.FEEDBACK_VIDEO, { video: video, verdict: "good" })
+            .then(function () {
+              showNotice("Marked as valuable — ProTube learned your preference.");
+            })
+            .catch(function () {});
+        } else if (action === "clickbait" && video) {
+          card.remove();
+          if (lastFeed && Array.isArray(lastFeed.videos)) {
+            lastFeed.videos = lastFeed.videos.filter(function (v) { return v.videoId !== videoId; });
+          }
+          send(YTFeedConstants.MESSAGE.FEEDBACK_VIDEO, { video: video, verdict: "clickbait" })
+            .then(function () {
+              showNotice("Marked as clickbait/low-value — future feeds will down-rank similar videos.");
+            })
+            .catch(function () {});
         } else if (action === "dismiss" && videoId) {
           card.remove();
           if (lastFeed && Array.isArray(lastFeed.videos)) {

@@ -2,6 +2,8 @@
   "use strict";
 
   var settings = null;
+  var stats = null;
+  var learned = null;
   var WEIGHT_LABELS = {
     aiRelated: "AI-related boost",
     educational: "Educational boost",
@@ -34,8 +36,14 @@
   };
 
   document.addEventListener("DOMContentLoaded", function () {
-    YTFeedStorage.getSettings().then(function (loaded) {
-      settings = loaded;
+    Promise.all([
+      YTFeedStorage.getSettings(),
+      YTFeedStorage.getStats(),
+      YTFeedStorage.getLearned()
+    ]).then(function (tuple) {
+      settings = tuple[0];
+      stats = tuple[1];
+      learned = tuple[2];
       bind();
       render();
     });
@@ -49,6 +57,9 @@
     document.getElementById("apiKey").addEventListener("input", updateQuotaEstimate);
     document.getElementById("topicForm").addEventListener("submit", onAddTopic);
     document.getElementById("channelForm").addEventListener("submit", onFindChannel);
+    document.getElementById("trustedForm").addEventListener("submit", onFindTrustedChannel);
+    document.getElementById("resetLearnedBtn").addEventListener("click", onResetLearned);
+    document.getElementById("cbLlmEnabled").addEventListener("change", onToggleLlm);
     document.getElementById("exportBtn").addEventListener("click", exportSettings);
     document.getElementById("importInput").addEventListener("change", importSettings);
   }
@@ -63,12 +74,120 @@
     document.getElementById("relevanceLanguage").value = settings.relevanceLanguage;
     renderPresetPacks();
     renderCalmUI();
+    renderClickbait();
     renderHide();
     renderTopics();
     renderChannels();
     renderBlockedChannels();
     renderWeights();
     updateQuotaEstimate();
+  }
+
+  function renderClickbait() {
+    var cb = settings.clickbait || {};
+    var llm = cb.llm || {};
+    document.getElementById("cbEnabled").checked = cb.enabled !== false;
+    document.getElementById("cbSensitivity").value = cb.sensitivity || "balanced";
+    document.getElementById("cbShowBadge").checked = cb.showBadge !== false;
+    document.getElementById("cbShowReasons").checked = cb.showReasons !== false;
+    document.getElementById("cbTrustStarter").checked = cb.trustStarterChannels !== false;
+    document.getElementById("cbLlmEnabled").checked = !!llm.enabled;
+    document.getElementById("cbLlmKey").value = llm.apiKey || "";
+    document.getElementById("cbLlmCap").value = llm.dailyCap || 20;
+
+    var weekFiltered = (stats && stats.filteredClickbaitWeek) || 0;
+    var chCount = learned && learned.channels ? Object.keys(learned.channels).length : 0;
+    var phCount = learned && learned.phrases ? Object.keys(learned.phrases).length : 0;
+    document.getElementById("clickbaitStats").textContent =
+      "Filtered " + weekFiltered + " clickbait videos this week · Learned: " + chCount + " channels, " + phCount + " phrases";
+
+    var host = document.getElementById("trustedChannels");
+    host.innerHTML = "";
+    var list = cb.trustedChannels || [];
+    if (!list.length) {
+      host.innerHTML = '<div class="help">No custom trusted channels added yet.</div>';
+      return;
+    }
+    list.forEach(function (ch, index) {
+      var row = document.createElement("div");
+      row.className = "row blocked";
+      row.innerHTML =
+        "<div><strong>" +
+        escapeHtml(ch.title || ch.channelId || ch) +
+        "</strong><div class='help'>" +
+        escapeHtml(ch.channelId || ch) +
+        "</div></div>" +
+        '<button type="button" data-untrust="' + index + '">Remove</button>';
+      row.querySelector("button").addEventListener("click", function () {
+        settings.clickbait.trustedChannels.splice(index, 1);
+        renderClickbait();
+      });
+      host.appendChild(row);
+    });
+  }
+
+  function onResetLearned() {
+    chrome.runtime.sendMessage({ type: YTFeedConstants.MESSAGE.RESET_LEARNED }, function (resp) {
+      if (resp && resp.ok) {
+        learned = { channels: {}, phrases: {} };
+        renderClickbait();
+        showBanner("Learned clickbait feedback has been reset.", false);
+      }
+    });
+  }
+
+  function onToggleLlm(e) {
+    if (!e.target.checked) return;
+    if (!chrome.permissions || !chrome.permissions.request) return;
+    chrome.permissions.request({ origins: ["https://api.openai.com/*"] }, function (granted) {
+      if (!granted) {
+        e.target.checked = false;
+        showBanner("Permission for api.openai.com was not granted. AI Judge remains disabled.", true);
+      }
+    });
+  }
+
+  function onFindTrustedChannel(event) {
+    event.preventDefault();
+    var query = document.getElementById("trustedQuery").value.trim();
+    var resultsHost = document.getElementById("trustedResults");
+    resultsHost.textContent = "Searching…";
+    chrome.runtime.sendMessage(
+      { type: YTFeedConstants.MESSAGE.SEARCH_CHANNEL, query: query },
+      function (response) {
+        if (!response || !response.ok) {
+          resultsHost.textContent = (response && response.error) || "Search failed";
+          return;
+        }
+        resultsHost.innerHTML = "";
+        (response.data || []).forEach(function (ch) {
+          var row = document.createElement("div");
+          row.className = "row channel";
+          row.innerHTML =
+            "<div></div><div><strong>" +
+            escapeHtml(ch.title) +
+            "</strong><div class='help'>" +
+            escapeHtml(ch.channelId) +
+            "</div></div><div></div>" +
+            '<button type="button">Trust</button>';
+          row.querySelector("button").addEventListener("click", function () {
+            settings.clickbait = settings.clickbait || {};
+            settings.clickbait.trustedChannels = settings.clickbait.trustedChannels || [];
+            var exists = settings.clickbait.trustedChannels.some(function (t) {
+              return (t.channelId || t) === ch.channelId;
+            });
+            if (!exists) {
+              settings.clickbait.trustedChannels.push({ channelId: ch.channelId, title: ch.title });
+            }
+            document.getElementById("trustedQuery").value = "";
+            resultsHost.innerHTML = "";
+            renderClickbait();
+          });
+          resultsHost.appendChild(row);
+        });
+        if (!response.data.length) resultsHost.textContent = "No channels found.";
+      }
+    );
   }
 
   function renderPresetPacks() {
@@ -342,6 +461,17 @@
     document.querySelectorAll("[data-calm]").forEach(function (input) {
       settings.calmUI[input.getAttribute("data-calm")] = input.checked;
     });
+    settings.clickbait = settings.clickbait || {};
+    settings.clickbait.enabled = document.getElementById("cbEnabled").checked;
+    settings.clickbait.sensitivity = document.getElementById("cbSensitivity").value || "balanced";
+    settings.clickbait.showBadge = document.getElementById("cbShowBadge").checked;
+    settings.clickbait.showReasons = document.getElementById("cbShowReasons").checked;
+    settings.clickbait.trustStarterChannels = document.getElementById("cbTrustStarter").checked;
+    settings.clickbait.llm = settings.clickbait.llm || {};
+    settings.clickbait.llm.enabled = document.getElementById("cbLlmEnabled").checked;
+    settings.clickbait.llm.apiKey = document.getElementById("cbLlmKey").value.trim();
+    var cap = Number(document.getElementById("cbLlmCap").value);
+    settings.clickbait.llm.dailyCap = (!isNaN(cap) && cap >= 1) ? Math.min(100, cap) : 20;
     settings.topics.forEach(function (topic, index) {
       var enabled = document.querySelector('[data-topic-enabled="' + index + '"]');
       var name = document.querySelector('[data-topic-name="' + index + '"]');
@@ -385,7 +515,14 @@
 
   function exportSettings() {
     collectFromDom();
-    var copy = Object.assign({}, settings, { apiKey: "" });
+    var cbCopy = Object.assign({}, settings.clickbait || {}, {
+      llm: Object.assign({}, (settings.clickbait && settings.clickbait.llm) || {}, { apiKey: "" })
+    });
+    var copy = Object.assign({}, settings, {
+      apiKey: "",
+      clickbait: cbCopy,
+      learned: learned || { channels: {}, phrases: {} }
+    });
     var blob = new Blob([JSON.stringify(copy, null, 2)], { type: "application/json" });
     var url = URL.createObjectURL(blob);
     var a = document.createElement("a");
@@ -403,16 +540,37 @@
       try {
         var parsed = JSON.parse(String(reader.result || "{}"));
         var currentKey = settings.apiKey;
+        var currentLlmKey = settings.clickbait && settings.clickbait.llm ? settings.clickbait.llm.apiKey : "";
         var defaults = YTFeedConstants.defaultSettings();
+        var parsedCb = parsed.clickbait || {};
+        var mergedCb = Object.assign({}, defaults.clickbait, parsedCb, {
+          trustedChannels: Array.isArray(parsedCb.trustedChannels) ? parsedCb.trustedChannels : [],
+          llm: Object.assign({}, defaults.clickbait.llm, parsedCb.llm || {}, {
+            apiKey: (parsedCb.llm && parsedCb.llm.apiKey) || currentLlmKey
+          })
+        });
         settings = Object.assign({}, defaults, parsed, {
           apiKey: parsed.apiKey || currentKey,
           blockedChannels: Array.isArray(parsed.blockedChannels) ? parsed.blockedChannels : [],
           weights: Object.assign({}, defaults.weights, parsed.weights || {}),
           hideNative: Object.assign({}, defaults.hideNative, parsed.hideNative || {}),
-          calmUI: Object.assign({}, defaults.calmUI, parsed.calmUI || {})
+          calmUI: Object.assign({}, defaults.calmUI, parsed.calmUI || {}),
+          clickbait: mergedCb
         });
-        render();
-        save("Imported settings and saved.");
+        delete settings.learned;
+        var importedLearned = parsed.learned && typeof parsed.learned === "object"
+          ? {
+              channels: parsed.learned.channels || {},
+              phrases: parsed.learned.phrases || {}
+            }
+          : null;
+        var learnedTask = importedLearned
+          ? YTFeedStorage.saveLearned(importedLearned).then(function (l) { learned = l; })
+          : Promise.resolve();
+        learnedTask.then(function () {
+          render();
+          save("Imported settings and saved.");
+        });
       } catch (err) {
         showBanner("Invalid JSON file: " + err.message, true);
       }
