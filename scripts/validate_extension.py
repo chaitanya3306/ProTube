@@ -48,6 +48,9 @@ for script in manifest.get("content_scripts", []):
     for path in script.get("css", []):
         require_file(path, "Content stylesheet")
 
+require_file("js/clickbait.js", "Clickbait detector")
+require_file("js/scoring.js", "Scoring engine")
+
 allowed_permissions = {"storage"}
 unexpected = set(manifest.get("permissions", [])) - allowed_permissions
 if unexpected:

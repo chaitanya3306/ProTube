@@ -99,6 +99,7 @@ ProTube/
     ├── presets.js       # Curated starter channels & 1-click preset packs
     ├── storage.js       # chrome.storage.sync & chrome.storage.local wrappers
     ├── youtube-api.js   # YouTube Data API v3 + official Atom RSS XML parser
+    ├── clickbait.js     # 5-layer Clickbait & Value Detection engine
     ├── scoring.js       # Quality/relevance scoring, calm titles, batch rotation
     ├── background.js    # MV3 service worker (pool rotation, history, actions)
     ├── content.js       # Home overlay, card actions, watch shield & timer
@@ -107,6 +108,34 @@ ProTube/
 ```
 
 All JavaScript is dependency-free vanilla JS—no bundler, no build step required.
+
+---
+
+## Clickbait & Value Detection
+
+ProTube includes a deterministic, local-first **Clickbait & Value Detection** layer (`js/clickbait.js`) that runs in `< 1 ms` per video and fails open when unsure:
+
+1. **Layer 1 — Title Heuristics**: Checks ALL-CAPS word ratio (excluding an acronym whitelist and your domain keywords), excessive punctuation/emoji spam, curiosity-gap/hype phrases, vague pronoun hooks, and lightweight number-bait—while subtracting penalties for substantive signals (`explained`, `from scratch`, `lecture`, `paper review`, chapter timestamps).
+2. **Layer 2 — Metadata Signals**: Uses available engagement ratios (like/view, comment/view, high-velocity spikes with weak engagement, RSS `starRating`, duration sanity) without penalizing missing fields in RSS mode. Trusted channels get a value bonus and skip hard rejection.
+3. **Layer 3 — Title-vs-Description Coherence**: Lightly penalizes hype-heavy titles with empty or promotional-only descriptions.
+4. **Layer 4 — Local Feedback Loop**: Use the **Good** / **Clickbait** buttons on any video card to nudge future channel and phrase weights in `chrome.storage.local` (exportable/importable and resettable in Settings).
+5. **Layer 5 — Optional AI Judge (Off by default)**: Can be enabled in Settings with your own OpenAI API key and runtime permission for `api.openai.com` to classify only borderline videos under a strict daily call cap.
+
+### Tuning & Testing
+
+- All phrase lists, acronym whitelists, and sensitivity thresholds (`strict`, `balanced`, `lenient`) live as plain data in `CLICKBAIT_DATA` inside [js/constants.js](js/constants.js).
+- Run the automated test suite and extension validator locally:
+
+```bash
+node tests/clickbait.test.js
+python scripts/validate_extension.py
+```
+
+### Known Limitations
+
+- In Starter (RSS) mode, YouTube Atom feeds do not include video duration or comment counts, so duration-based and comment-ratio heuristics are skipped (failing open).
+- Transcripts are not fetched in v1 to avoid unstable undocumented endpoints and extra host permissions.
+- Non-Latin titles skip English-specific ALL-CAPS and coherence heuristics so valuable non-English content is not falsely rejected.
 
 ---
 

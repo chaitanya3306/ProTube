@@ -4,6 +4,7 @@ desktop.ini
 *.zip
 *.crx
 *.pem
+dist/
 node_modules/
 .vscode/
 .idea/

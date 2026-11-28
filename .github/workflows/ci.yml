@@ -32,6 +32,8 @@ jobs:
           while IFS= read -r -d '' file; do
             node --check "$file"
           done < <(find js -type f -name '*.js' -print0)
+      - name: Run clickbait and scoring tests
+        run: node tests/clickbait.test.js
       - name: Build store upload package
         run: python scripts/package_extension.py
       - name: Upload installable package

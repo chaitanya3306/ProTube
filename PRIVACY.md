@@ -6,7 +6,7 @@ ProTube is a browser extension that changes how YouTube is presented in your bro
 
 ## Information stored on your device
 
-ProTube stores extension preferences, selected topics and channels, muted channels, saved video identifiers, feed/cache data, seen-video history, focus timer state, and watch-time counters in the browser's extension storage (`chrome.storage.sync` and `chrome.storage.local`). Synced settings may be synchronized by the browser vendor according to the user's browser account and sync settings.
+ProTube stores extension preferences, selected topics and channels, muted channels, trusted channels, saved video identifiers, feed/cache data, seen-video history, clickbait assessment caches, local feedback adjustments (channel/phrase weights), focus timer state, and watch-time counters in the browser's extension storage (`chrome.storage.sync` and `chrome.storage.local`). Synced settings may be synchronized by the browser vendor according to the user's browser account and sync settings. You can reset learned clickbait feedback at any time in Settings.
 
 ## Network requests and information sent to third parties
 
@@ -15,6 +15,7 @@ ProTube makes requests directly from your browser:
 - **YouTube Atom feeds:** In Starter/RSS mode, ProTube requests public channel feed URLs. The channel identifier is included in the request URL.
 - **YouTube Data API v3:** If you enter your own Google API key, ProTube sends that key and the search parameters configured in the extension (such as topic query, region, language, and channel identifiers) to Google's YouTube Data API. Google's handling of those requests is governed by Google's terms and privacy policy.
 - **Video thumbnails:** The extension may display thumbnail images hosted by YouTube image domains.
+- **Optional AI Judge (disabled by default):** Only if you explicitly enable the AI Judge in Settings, grant runtime host permission for `api.openai.com`, and supply your own OpenAI API key, ProTube sends only the video title, channel name, duration, and a 250-character description excerpt for borderline videos to OpenAI. Results are cached locally and capped by your daily call limit.
 
 ProTube does not send this information to a server operated by the developer. The developer does not receive a copy of your settings, search history, saved queue, or watch-time counters through ProTube.
 
