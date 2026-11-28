@@ -1,0 +1,35 @@
+name: Release
+
+# Push a tag like v2.1.0 and GitHub builds both packages and publishes them as a
+# Release: free, public download links with no store account needed.
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Validate and test
+        run: |
+          python scripts/validate_extension.py
+          node tests/clickbait.test.js
+      - name: Build Chromium and Firefox packages
+        run: |
+          python scripts/package_extension.py
+          python scripts/package_firefox.py
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          generate_release_notes: true

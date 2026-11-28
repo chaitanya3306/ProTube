@@ -2,6 +2,20 @@
 
 All notable changes to ProTube (YT Focus Feed) are documented in this file.
 
+## [2.1.1] - 2026-11-28
+
+### Improved
+- **Clickbait detection recall**: the first release only caught extreme ALL-CAPS/`!!!` titles. A holdout test of realistic Title-Case clickbait found 0 of 15 flagged. Added typographic-apostrophe normalization, shouted-hype-word detection, ~40 more hook phrases and patterns, a combination bonus for multiple independent signals, and a larger acronym whitelist. Holdout result: 13/13 clickbait titles flagged (7 hard-rejected, 6 borderline) with 0 of 24 legitimate titles flagged.
+- Added the holdout set to `tests/clickbait.test.js` as a permanent regression test.
+
+### Added
+- **Firefox build** (`scripts/package_firefox.py`) and **Release workflow** (`.github/workflows/release.yml`): tag `vX.Y.Z` to publish Chromium and Firefox ZIPs as a GitHub Release.
+- `STORE_LISTING.md`: listing copy and permission justifications for Edge, Firefox and Opera submissions.
+
+### Fixed
+- `manifest.json` version now matches the changelog (2.1.x).
+- `background.js` guards `importScripts` so the same file also runs as a Firefox event page.
+
 ## [2.1.0] - 2026-11-28
 
 ### Added

@@ -68,18 +68,26 @@ Most distraction blockers (like Unhook or DF Tube) simply wipe the homepage blan
 
 ## Public distribution
 
-The project is prepared for Chromium-based browsers. The repository includes a validation script and a reproducible store-package ZIP builder:
+ProTube builds for Chromium browsers and Firefox from one source tree:
 
-```bash
+```
 python scripts/validate_extension.py
-python scripts/package_extension.py
+node tests/clickbait.test.js
+python scripts/package_extension.py   # Chrome / Edge / Opera / Brave  -> dist/protube-vX.Y.Z-store.zip
+python scripts/package_firefox.py     # Firefox                       -> dist/protube-vX.Y.Z-firefox.zip
 ```
 
-The package is written to `dist/` and contains the runtime files only. GitHub Actions runs manifest checks, JavaScript syntax checks, and package creation on pushes and pull requests. A successful run exposes the ZIP as a downloadable workflow artifact.
+Pushing a tag such as `v2.1.1` runs `.github/workflows/release.yml`, which publishes both ZIPs as a GitHub Release. See `STORE_LISTING.md` for ready-to-paste store copy.
 
-For Microsoft Edge Add-ons, register a free developer account in Microsoft Partner Center, create a new extension, and upload the generated ZIP. Complete the privacy disclosures, store listing, screenshots, and certification notes before submitting. See the official [Edge publishing guide](https://learn.microsoft.com/en-us/microsoft-edge/extensions/publish/publish-extension).
+| Store | Cost | Package |
+| --- | --- | --- |
+| Microsoft Edge Add-ons | Free | `-store.zip` |
+| Firefox Add-ons (AMO) | Free | `-firefox.zip` |
+| Opera Add-ons | Free | `-store.zip` |
+| Chrome Web Store | One-time developer fee | `-store.zip` |
+| GitHub Releases (manual install) | Free | either |
 
-For Chrome Web Store publication, a Chrome Web Store developer account and its one-time registration fee are still required. GitHub Releases and developer-mode installation are alternatives for testing, but are not equivalent to a one-click public Chrome Web Store installation.
+Edge, Opera and Brave users can also install from the stores above; Chrome users need the Chrome Web Store or Developer Mode.
 
 ## Project Architecture
 

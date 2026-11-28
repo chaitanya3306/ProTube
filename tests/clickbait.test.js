@@ -129,6 +129,81 @@ assert(recall >= 0.90, "Recall (clickbait + borderline) must be >= 90%");
 assert(strictRecall >= 0.80, "Strict recall must be >= 80%");
 assert(avgMs < 2.0, `Must run under 2ms/video (got ${avgMs.toFixed(3)}ms)`);
 
+// 1b. Holdout set: realistic Title-Case clickbait with NO metadata (like a fresh RSS item) and
+// legitimate titles that merely use hype-like words. Written independently of the tuned fixtures above.
+const HOLDOUT_CLICKBAIT = [
+  "I Tried Using AI For 30 Days And What Happened Will SHOCK You",
+  "This ONE Python Trick Will Change Your Life FOREVER!!!",
+  "Nobody Is Talking About This Crazy AI Tool \u{1F631}\u{1F525}",
+  "Why Every Data Engineer Is QUITTING (The Truth They Hide)",
+  "You Won\u2019t Believe What This Chatbot Just Did",
+  "STOP Doing This Or You'll Never Get A Job!!",
+  "The Secret Google Doesn't Want You To Know",
+  "I Made $10,000 In One Day With ChatGPT (INSANE)",
+  "Is This The END Of Programmers??",
+  "He Did THIS And Everything Changed",
+  "Mind-Blowing AI Hack That Will Make You Rich",
+  "Doctors HATE Him: Ultimate Weight Loss Method",
+  "THIS Is Why You Are Still Poor!!!"
+];
+const HOLDOUT_VALUABLE = [
+  "Insane Performance Gains With Rust: A Benchmark Study",
+  "The Dark Side of Premature Optimization",
+  "Is Programming Dead? An Honest Look at AI Coding Tools",
+  "The End of Moore's Law Explained",
+  "Why Every Data Engineer Should Learn Spark Internals",
+  "Secrets of the Python Interpreter: How Bytecode Works",
+  "Exposed: Vulnerabilities in Popular npm Packages (Security Analysis)",
+  "Python 3.13 Changed Everything About the GIL \u2013 Deep Dive",
+  "I Tried Rust for 30 Days and Here Is What I Learned",
+  "BERT vs LSTM vs GPT: NLP Models Compared",
+  "PEP 8 Style Guide Explained",
+  "Never Do This in Pandas: Common Performance Mistakes",
+  "Biggest Mistakes in ML Model Evaluation (And How to Avoid Them)",
+  "The Truth About Data Leakage in Machine Learning",
+  "Shocking Results From Our Spark Cluster Benchmark",
+  "Free Data Engineering Course \u2013 Full Beginner Roadmap",
+  "Why Everyone Is Moving From Airflow to Dagster",
+  "Crazy Fast Pandas Alternatives: Polars, DuckDB, Vaex",
+  "Docker Is Dead? Podman vs Docker Comparison",
+  "Gradient Descent Explained Visually",
+  "Build a REST API with FastAPI \u2013 Full Tutorial",
+  "What Happened to the Dot-Com Bubble? An Economic History",
+  "AWS S3 vs GCS: Which Should You Use?",
+  "Is Python Still Worth Learning in 2026?"
+];
+const holdoutSettings = JSON.parse(JSON.stringify(defaultSettings));
+holdoutSettings.topics = [
+  { name: "Machine Learning", query: "machine learning", enabled: true },
+  { name: "Python", query: "python programming", enabled: true },
+  { name: "Data Engineering", query: "data engineering spark", enabled: true }
+];
+let holdoutCaught = 0;
+let holdoutHard = 0;
+HOLDOUT_CLICKBAIT.forEach((title) => {
+  const r = Clickbait.assessClickbait({ title }, holdoutSettings, null);
+  if (r.verdict !== "good") holdoutCaught++;
+  if (r.verdict === "clickbait") holdoutHard++;
+});
+let holdoutFlaggedValuable = 0;
+HOLDOUT_VALUABLE.forEach((title) => {
+  const r = Clickbait.assessClickbait({ title }, holdoutSettings, null);
+  if (r.verdict === "clickbait") {
+    assert.fail("Holdout false positive (hard reject): " + title);
+  }
+  if (r.verdict !== "good") {
+    holdoutFlaggedValuable++;
+    console.error("Holdout borderline on valuable title:", title, r.reasons);
+  }
+});
+console.log(
+  `[Holdout Eval] title-only clickbait flagged ${holdoutCaught}/${HOLDOUT_CLICKBAIT.length} ` +
+  `(hard-rejected ${holdoutHard}); valuable flagged ${holdoutFlaggedValuable}/${HOLDOUT_VALUABLE.length}`
+);
+assert(holdoutCaught / HOLDOUT_CLICKBAIT.length >= 0.85, "Holdout recall (flagged) must be >= 85%");
+assert(holdoutHard / HOLDOUT_CLICKBAIT.length >= 0.5, "Holdout hard-reject rate must be >= 50% (the rest stay borderline: fail-open by design)");
+assert(holdoutFlaggedValuable <= 1, "At most 1 legitimate holdout title may be borderline; none hard-rejected");
+
 // 2. Edge cases
 const emptyTitleRes = Clickbait.assessClickbait({ title: "" }, defaultSettings, null);
 assert.strictEqual(emptyTitleRes.verdict, "good", "Empty title fails open");

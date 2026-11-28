@@ -19,6 +19,11 @@ var YTFeedClickbait = (function () {
     ACRONYM_SET[String(a).toUpperCase()] = true;
   });
 
+  var EMPHASIS_SET = {};
+  (DATA.emphasisCapsWords || []).forEach(function (w) {
+    EMPHASIS_SET[String(w).toUpperCase()] = true;
+  });
+
   var VAGUE_HOOK_REGEXES = (DATA.vagueHooks || []).map(function (item) {
     return {
       re: new RegExp(item.pattern, "i"),
@@ -142,7 +147,10 @@ var YTFeedClickbait = (function () {
     var matchedPhrases = [];
     var domainTokens = buildDomainTokenSet(settings);
     var isLatin = isMostlyAsciiLatin(title);
+    // Normalize typographic quotes so "won’t" matches "won't"
+    title = title.replace(/[\u2018\u2019\u201B]/g, "'").replace(/[\u201C\u201D]/g, "\"");
     var titleLower = title.toLowerCase();
+    var signalKinds = {};
 
     // --- LAYER 1: Title heuristics ---
     // 1a. ALL-CAPS word ratio (excluding acronyms & user domain keywords)
@@ -150,12 +158,14 @@ var YTFeedClickbait = (function () {
       var rawWords = title.split(/\s+/).filter(Boolean);
       var eligibleWords = 0;
       var capsWords = 0;
+      var emphasisHits = 0;
       rawWords.forEach(function (w) {
         var clean = w.replace(/[^A-Za-z0-9]/g, "");
         if (clean.length < 3 || /^\d+$/.test(clean)) return;
         var upperClean = clean.toUpperCase();
         var lowerClean = clean.toLowerCase();
         if (ACRONYM_SET[upperClean] || domainTokens[lowerClean]) return;
+        if (clean === upperClean && EMPHASIS_SET[upperClean]) emphasisHits++;
         eligibleWords++;
         if (clean === upperClean && /[A-Z]{3,}/.test(clean)) {
           capsWords++;
@@ -166,7 +176,14 @@ var YTFeedClickbait = (function () {
         var capsPenalty = Math.min(24, Math.round(10 + capsRatio * 20 + Math.max(0, capsWords - 2) * 3));
         cbScore += capsPenalty;
         reasons.push("Excessive ALL-CAPS (" + capsWords + " words)");
+        signalKinds.caps = true;
+      } else if (emphasisHits > 0) {
+        // A single shouted hype word (e.g. "will SHOCK you") is a weaker but real signal
+        cbScore += Math.min(14, emphasisHits * 7);
+        reasons.push("Shouted hype word");
+        signalKinds.caps = true;
       }
+      if (emphasisHits >= 2 && capsWords >= 2) cbScore += 4;
     }
 
     // 1b. Excess punctuation & hype emojis
@@ -176,10 +193,12 @@ var YTFeedClickbait = (function () {
       var punctPen = Math.min(16, 8 + (punctMatches.length - 1) * 4);
       cbScore += punctPen;
       reasons.push("Sensational punctuation");
+      signalKinds.punct = true;
     }
     if (emojiMatches && emojiMatches.length >= 2) {
       cbScore += Math.min(12, emojiMatches.length * 4);
       reasons.push("Hype emoji spam");
+      signalKinds.emoji = true;
     }
 
     // 1c. Curiosity-gap and hype phrases
@@ -188,6 +207,7 @@ var YTFeedClickbait = (function () {
       if (titleLower.indexOf(item.phrase) !== -1) {
         cbScore += item.weight;
         hypeHits++;
+        signalKinds.phrase = true;
         matchedPhrases.push(item.phrase);
         if (reasons.length < 5) {
           reasons.push("Hype phrase: \"" + item.phrase + "\"");
@@ -200,6 +220,7 @@ var YTFeedClickbait = (function () {
       if (hook.re.test(titleLower)) {
         cbScore += hook.weight;
         hypeHits++;
+        signalKinds.hook = true;
         if (reasons.length < 5) reasons.push("Curiosity-gap hook");
       }
     });
@@ -214,6 +235,13 @@ var YTFeedClickbait = (function () {
         if (valueHits <= 2) reasons.push("Substantive signal: \"" + sig.phrase + "\"");
       }
     });
+
+    // Combination bonus: several independent clickbait signals together are far more
+    // telling than one alone. Waived when strong educational signals are present.
+    var kindCount = Object.keys(signalKinds).length;
+    if (kindCount >= 2 && valueHits === 0) {
+      cbScore += Math.min(18, (kindCount - 1) * 6);
+    }
 
     // Domain keyword matches in title
     var domainHits = 0;

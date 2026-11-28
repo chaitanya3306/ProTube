@@ -1,4 +1,8 @@
-importScripts("constants.js", "presets.js", "storage.js", "clickbait.js", "scoring.js", "youtube-api.js");
+// Chromium runs this as a service worker (importScripts). Firefox loads the same files via
+// "background.scripts" in its manifest, where importScripts does not exist.
+if (typeof importScripts === "function") {
+  importScripts("constants.js", "presets.js", "storage.js", "clickbait.js", "scoring.js", "youtube-api.js");
+}
 
 var BATCH_SIZE = 24;
 var MAX_POOL_SIZE = 700;
